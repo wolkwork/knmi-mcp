@@ -1,9 +1,9 @@
 from typing import Dict, Optional
 from datetime import datetime
 from fastmcp import Context
-from .models import WeatherData, Coordinates
-from .station import StationManager
-from .location import get_coordinates
+from knmi_weather_mcp.models import WeatherData, Coordinates
+from knmi_weather_mcp.station import StationManager
+from knmi_weather_mcp.location import get_coordinates
 
 class WeatherService:
     """Service for fetching and processing KNMI weather data"""

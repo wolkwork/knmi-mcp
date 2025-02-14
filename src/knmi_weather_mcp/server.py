@@ -1,6 +1,5 @@
 from fastmcp import FastMCP, Context
 from typing import Dict, List, Any
-from datetime import datetime
 import httpx
 from knmi_weather_mcp.models import WeatherStation, WeatherData, Coordinates
 from knmi_weather_mcp.station import StationManager
@@ -10,8 +9,10 @@ from dotenv import load_dotenv
 import os
 import logging
 from pathlib import Path
-import functools
 
+# Get the absolute path to the src directory
+current_dir = Path(__file__).resolve().parent
+src_dir = current_dir.parent.parent
 
 load_dotenv()
 
@@ -54,11 +55,12 @@ class LoggingContext(Context):
 mcp = FastMCP(
     "KNMI Weather",
     description="Raw KNMI weather data provider for the Netherlands",
-    dependencies=["httpx", "pydantic", "python-dotenv"],
+    dependencies=["httpx", "pydantic", "python-dotenv", "pandas", "xarray", "numpy", "netCDF4"],
     debug=True,
     log_level="DEBUG",
     logger=logger,
-    context_class=LoggingContext
+    context_class=LoggingContext,
+    python_path=[str(src_dir)]  # Use the dynamically determined src directory
 )
 
 # Initialize station manager
@@ -186,7 +188,7 @@ async def get_nearest_station(
     return station_manager.find_nearest_station(coords)
 
 @mcp.tool()
-async def what_to_weer(
+async def what_is_the_weather_like_in(
     location: str,
     ctx: Context
 ) -> str:

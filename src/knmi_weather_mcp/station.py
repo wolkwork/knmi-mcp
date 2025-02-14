@@ -3,17 +3,15 @@ import asyncio
 import httpx
 from datetime import datetime
 from fastmcp import Context
-from .models import WeatherStation, Coordinates
+from knmi_weather_mcp.models import WeatherStation, Coordinates
 import os
 from dotenv import load_dotenv
 import logging
 from pathlib import Path
 from math import radians, sin, cos, sqrt, atan2
 import tempfile
-import polars as pl
 import xarray as xr
 import numpy as np
-import json
 import pandas as pd
 
 
