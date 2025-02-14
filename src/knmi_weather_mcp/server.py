@@ -200,11 +200,21 @@ async def what_is_the_weather_like_in(
     Returns:
         A natural language interpretation of the current weather conditions
     """
+    # Get the coordinates for the location
+    coords = await get_coordinates(location)
+    
     # Get the weather data
     weather_data = await weather_service.get_weather_by_location(location, ctx)
     
     # Convert to dict and ensure all fields are present
     data_dict = weather_data.dict()
+    
+    # Add location information
+    data_dict['requested_location'] = location
+    data_dict['location_coordinates'] = {
+        'latitude': coords.latitude,
+        'longitude': coords.longitude
+    }
     
     # Use the interpretation prompt to analyze it
     return weather_interpretation(data_dict)
@@ -219,7 +229,10 @@ def weather_interpretation(raw_data: Dict[str, Any]) -> str:
     3. Any notable patterns or extreme values
     4. Relevant clothing advice based on the conditions
     
-    Current weather data from {raw_data['station_name']} ({raw_data['station_id']}) at {raw_data['timestamp']}:
+    Location: {raw_data['requested_location']} ({raw_data['location_coordinates']['latitude']:.3f}°N, {raw_data['location_coordinates']['longitude']:.3f}°E)
+    Weather station: {raw_data['station_name']} ({raw_data['station_id']}) at {raw_data['timestamp']}
+    
+    Current measurements:
     - Temperature: {raw_data['temperature']}°C
     - Humidity: {raw_data['humidity']}%
     - Wind Speed: {raw_data['wind_speed']} m/s

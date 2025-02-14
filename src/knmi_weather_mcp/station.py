@@ -30,12 +30,12 @@ class StationManager:
     DATASET_NAME = "Actuele10mindataKNMIstations"
     DATASET_VERSION = "2"
     
-    # Netherlands bounding box (from dataset metadata)
+    # Netherlands bounding box (mainland Netherlands)
     NL_BOUNDS = {
-        'min_lat': 12.0,      # Updated based on dataset bounds
-        'max_lat': 55.7,      # Including BES islands
-        'min_lon': -68.5,     # And North Sea platforms
-        'max_lon': 7.4
+        'min_lat': 50.7,  # Southernmost point
+        'max_lat': 53.7,  # Northernmost point
+        'min_lon': 3.3,   # Westernmost point
+        'max_lon': 7.2    # Easternmost point
     }
     
     # Parameter mapping for 10-minute data
@@ -76,70 +76,148 @@ class StationManager:
         return self._stations
 
     async def refresh_stations(self, ctx: Optional[Context] = None) -> None:
-        """Fetch current stations from KNMI EDR API"""
+        """Fetch current stations from KNMI Open Data API"""
         async with self._lock:
             try:
                 async with httpx.AsyncClient() as client:
                     headers = {'Authorization': self._api_key}
                     
-                    # Test EDR API capabilities first
-                    capabilities_url = f"{self.BASE_URL}/collections/{self.DATASET_NAME}"
-                    logger.info("Testing EDR API capabilities")
+                    # Get the latest file to extract station information
+                    list_url = f"{self.BASE_URL}/datasets/{self.DATASET_NAME}/versions/{self.DATASET_VERSION}/files"
+                    params = {
+                        'maxKeys': '1',
+                        'sorting': 'desc',
+                        'order_by': 'lastModified'
+                    }
                     
-                    capabilities_response = await client.get(capabilities_url, headers=headers)
-                    capabilities_response.raise_for_status()
-                    
-                    capabilities = capabilities_response.json()
-                    logger.debug(f"EDR API capabilities: {capabilities}")
-                    
-                    # Get locations from EDR API
-                    locations_url = f"{capabilities_url}/locations"
-                    logger.info(f"Fetching stations from EDR API")
-                    
-                    response = await client.get(locations_url, headers=headers)
-                    
-                    if response.status_code == 401:
-                        logger.error("Authentication failed. Please check your API key.")
-                        raise ValueError("Authentication failed with KNMI API")
-                        
+                    logger.info("Fetching latest file for station information")
+                    response = await client.get(list_url, headers=headers, params=params)
                     response.raise_for_status()
                     
-                    locations_data = response.json()
-                    logger.info(f"Received {len(locations_data.get('features', []))} stations")
-                    logger.debug(f"Raw locations data: {locations_data}")
+                    files_data = response.json()
+                    if not files_data.get('files'):
+                        raise ValueError("No data files available")
                     
-                    new_stations = {}
-                    for feature in locations_data.get('features', []):
-                        properties = feature.get('properties', {})
-                        geometry = feature.get('geometry', {})
-                        coordinates = geometry.get('coordinates', [])
+                    latest_file = files_data['files'][0]
+                    filename = latest_file['filename']
+                    
+                    # Get download URL for the file
+                    url_endpoint = f"{self.BASE_URL}/datasets/{self.DATASET_NAME}/versions/{self.DATASET_VERSION}/files/{filename}/url"
+                    url_response = await client.get(url_endpoint, headers=headers)
+                    url_response.raise_for_status()
+                    
+                    download_url = url_response.json().get('temporaryDownloadUrl')
+                    if not download_url:
+                        raise ValueError("No download URL available")
+                    
+                    # Download and read the NetCDF file to get station information
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        temp_file = Path(temp_dir) / filename
+                        file_response = await client.get(download_url)
+                        file_response.raise_for_status()
+                        temp_file.write_bytes(file_response.content)
                         
-                        if len(coordinates) >= 2:
-                            # Get station ID, trying multiple possible property names
-                            station_id = str(properties.get('id') or 
-                                           properties.get('stationId') or 
-                                           properties.get('station_id') or 
-                                           properties.get('code', ''))
+                        with xr.open_dataset(temp_file) as ds:
+                            new_stations = {}
                             
-                            # Only add station if we have a valid ID and coordinates are within Netherlands
-                            if station_id and coordinates[0] and coordinates[1]:
-                                coords = Coordinates(
-                                    # GeoJSON uses [longitude, latitude] order
-                                    longitude=coordinates[0],
-                                    latitude=coordinates[1]
-                                )
+                            # Get station IDs and coordinates
+                            if 'station' in ds.dims:
+                                station_ids = ds['station'].values
+                                lats = ds['lat'].values
+                                lons = ds['lon'].values
                                 
-                                # Validate coordinates are within Netherlands
-                                if self._validate_coordinates(coords):
-                                    new_stations[station_id] = WeatherStation(
-                                        id=station_id,
-                                        name=properties.get('name', f'Station {station_id}'),
-                                        coordinates=coords,
-                                        elevation=properties.get('elevation', 0.0),
-                                        station_type=properties.get('type'),
-                                        region=properties.get('region')
+                                # Log the raw data found
+                                logger.debug(f"Raw station IDs found: {station_ids}")
+                                logger.debug(f"Raw latitudes found: {lats}")
+                                logger.debug(f"Raw longitudes found: {lons}")
+                                logger.debug(f"Dataset structure: {ds}")
+                                logger.debug(f"Dataset dimensions: {ds.dims}")
+                                logger.debug(f"Dataset variables: {list(ds.variables)}")
+                                logger.debug(f"Dataset attributes: {ds.attrs}")
+                                
+                                # Convert station IDs to our format (remove '06' prefix)
+                                station_ids = [str(sid).replace('06', '') if str(sid).startswith('06') else str(sid) for sid in station_ids]
+                                logger.debug(f"Converted station IDs: {station_ids}")
+                                
+                                # Try to get station names from the dataset
+                                station_names = None
+                                name_variables = [
+                                    'name', 'station_name', 'stn_name', 'stationname',
+                                    'station_names', 'names', 'stn_names', 'stationnames',
+                                    'NAMES', 'NAME', 'STN_NAME', 'STATION_NAME'
+                                ]
+                                
+                                for name_var in name_variables:
+                                    if name_var in ds.variables:
+                                        try:
+                                            station_names = ds[name_var].values
+                                            logger.info(f"Found station names in variable: {name_var}")
+                                            logger.debug(f"Raw station names: {station_names}")
+                                            break
+                                        except Exception as e:
+                                            logger.debug(f"Could not read station names from {name_var}: {e}")
+                                    
+                                if station_names is None:
+                                    # Try to find station names in dataset attributes
+                                    for attr_name in ds.attrs:
+                                        if 'name' in attr_name.lower() or 'station' in attr_name.lower():
+                                            logger.debug(f"Found potential station name attribute: {attr_name}")
+                                            try:
+                                                attr_value = ds.attrs[attr_name]
+                                                if isinstance(attr_value, (str, bytes)):
+                                                    logger.info(f"Found station names in attribute: {attr_name}")
+                                                    station_names = [attr_value]
+                                                elif isinstance(attr_value, (list, np.ndarray)):
+                                                    logger.info(f"Found station names array in attribute: {attr_name}")
+                                                    station_names = attr_value
+                                                break
+                                            except Exception as e:
+                                                logger.debug(f"Could not read station names from attribute {attr_name}: {e}")
+                                
+                                logger.info(f"Found {len(station_ids)} stations in NetCDF file")
+                                logger.debug(f"Available dimensions: {ds.dims}")
+                                logger.debug(f"Available variables: {list(ds.variables)}")
+                                
+                                for i, station_id in enumerate(station_ids):
+                                    station_id = str(station_id)
+                                    coords = Coordinates(
+                                        latitude=float(lats[i]),
+                                        longitude=float(lons[i])
                                     )
-                                    logger.debug(f"Added station {station_id}: {new_stations[station_id]}")
+                                    
+                                    # Get station name from dataset
+                                    station_name = None
+                                    if station_names is not None:
+                                        try:
+                                            name = station_names[i] if i < len(station_names) else None
+                                            if isinstance(name, bytes):
+                                                name = name.decode('utf-8')
+                                            if isinstance(name, str) and name.strip():
+                                                station_name = name.strip()
+                                                logger.debug(f"Found name '{station_name}' for station {station_id}")
+                                        except Exception as e:
+                                            logger.debug(f"Could not decode station name for {station_id}: {e}")
+                                    
+                                    if not station_name:
+                                        station_name = f"Station {station_id}"
+                                        logger.debug(f"Using default name '{station_name}' for station {station_id}")
+                                    
+                                    # Log coordinates before validation
+                                    logger.debug(f"Station {station_id} coordinates: lat={coords.latitude}, lon={coords.longitude}")
+                                    
+                                    # Only add station if coordinates are within mainland Netherlands
+                                    if self._validate_coordinates(coords):
+                                        new_stations[station_id] = WeatherStation(
+                                            id=station_id,
+                                            name=station_name,
+                                            coordinates=coords,
+                                            elevation=0.0,  # Could be extracted if available
+                                            station_type="Weather",
+                                            region="Netherlands"
+                                        )
+                                        logger.debug(f"Added station {station_id}: {new_stations[station_id]}")
+                                    else:
+                                        logger.debug(f"Station {station_id} coordinates outside Netherlands bounds")
                     
                     if not new_stations:
                         logger.warning("No valid stations found in Netherlands, using fallback stations")
@@ -266,6 +344,31 @@ class StationManager:
                             logger.debug(f"Available variables: {list(ds.variables)}")
                             logger.debug(f"Dimensions: {ds.dims}")
                             
+                            # Verify we have the correct station data
+                            if 'station' in ds.dims:
+                                stations_in_file = ds['station'].values
+                                logger.debug(f"Stations in file: {stations_in_file}")
+                                
+                                # Convert our station_id to match KNMI format (add '06' prefix if needed)
+                                knmi_station_id = f"06{station_id}" if not station_id.startswith('06') else station_id
+                                logger.debug(f"Looking for station ID {knmi_station_id} (original: {station_id})")
+                                
+                                # Convert to the same type as in the file
+                                file_station_type = type(stations_in_file[0])
+                                comparable_station_id = file_station_type(knmi_station_id)
+                                
+                                if comparable_station_id not in stations_in_file:
+                                    raise ValueError(f"Station {station_id} (as {knmi_station_id}) not found in file. Available stations: {stations_in_file}")
+                                
+                                # Find the index of our station
+                                station_idx = np.where(stations_in_file == comparable_station_id)[0]
+                                if len(station_idx) == 0:
+                                    raise ValueError(f"Could not find index for station {knmi_station_id}")
+                                station_idx = station_idx[0]
+                                logger.debug(f"Found station {knmi_station_id} at index {station_idx}")
+                            else:
+                                raise ValueError("No station dimension found in file")
+                            
                             # Create a dictionary to store the measurements
                             measurements = {}
                             
@@ -288,24 +391,27 @@ class StationManager:
                                     logger.debug(f"Found variable {nc_param} with dimensions {var.dims}")
                                     
                                     try:
-                                        # Get the latest value
-                                        if 'time' in var.dims:
-                                            # Get the last time index
-                                            value = var.isel(time=-1)
-                                            # If there are other dimensions, take the first value
+                                        # Get the value for our specific station
+                                        if 'station' in var.dims:
+                                            # Select our station first
+                                            value = var.isel(station=station_idx)
+                                            
+                                            # Then get the latest time if it exists
+                                            if 'time' in value.dims:
+                                                value = value.isel(time=-1)
+                                            
+                                            # Handle any remaining dimensions
                                             while len(value.dims) > 0:
                                                 value = value.isel({value.dims[0]: 0})
+                                                
                                             value = float(value.values)
                                         else:
-                                            # Single value
-                                            value = var.values
-                                            # If multi-dimensional, take the first value
-                                            while isinstance(value, np.ndarray) and value.size > 1:
-                                                value = value[0]
-                                            value = float(value)
+                                            logger.warning(f"Variable {nc_param} does not have a station dimension")
+                                            continue
                                             
                                         if not np.isnan(value):
                                             measurements[model_field] = value
+                                            logger.debug(f"Got {model_field} = {value} for station {station_id}")
                                     except Exception as e:
                                         logger.warning(f"Could not extract value for {nc_param}: {e}")
                             
