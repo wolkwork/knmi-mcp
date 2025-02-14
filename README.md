@@ -49,7 +49,7 @@ To use this application with Claude AI, add the following configuration to your 
     "command": "uv",
     "args": [
       "--directory",
-      "/Users/stijnmeijers/src/knmi-mcp/src/knmi_weather_mcp",
+      "/Users/<username>/src/knmi-mcp/src/knmi_weather_mcp",
       "run",
       "--with",
       "fastmcp",
