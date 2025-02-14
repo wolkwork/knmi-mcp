@@ -150,7 +150,3 @@ The application includes robust error handling for:
 - Network problems
 - Data parsing errors
 - Missing measurements
-
-## License
-
-[Add your license information here]
