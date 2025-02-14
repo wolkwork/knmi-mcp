@@ -151,14 +151,6 @@ The application includes robust error handling for:
 - Data parsing errors
 - Missing measurements
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
 ## License
 
 [Add your license information here]
