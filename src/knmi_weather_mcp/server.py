@@ -56,8 +56,8 @@ mcp = FastMCP(
     "KNMI Weather",
     description="Raw KNMI weather data provider for the Netherlands",
     dependencies=["httpx", "pydantic", "python-dotenv", "pandas", "xarray", "numpy", "netCDF4"],
-    debug=True,
-    log_level="DEBUG",
+    debug=False,
+    log_level="INFO",
     logger=logger,
     context_class=LoggingContext,
     python_path=[str(src_dir)]  # Use the dynamically determined src directory
