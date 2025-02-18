@@ -1,5 +1,7 @@
 # KNMI Weather MCP
 
+[![smithery badge](https://smithery.ai/badge/@wolkwork/knmi-mcp)](https://smithery.ai/server/@wolkwork/knmi-mcp)
+
 A FastMCP server that provides real-time weather data from KNMI (Royal Netherlands Meteorological Institute) weather stations. This application fetches the latest 10-minute measurements from the nearest weather station to any location in the Netherlands.
 
 ## Features
@@ -25,6 +27,15 @@ A FastMCP server that provides real-time weather data from KNMI (Royal Netherlan
 
 ## Installation
 
+### Installing via Smithery
+
+To install KNMI Weather for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@wolkwork/knmi-mcp):
+
+```bash
+npx -y @smithery/cli install @wolkwork/knmi-mcp --client claude
+```
+
+### Manual Installation
 1. Clone the repository:
 
    ```bash
