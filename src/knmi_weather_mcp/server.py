@@ -1,14 +1,15 @@
-from fastmcp import FastMCP, Context
-from typing import Dict, List, Any
-import httpx
-from knmi_weather_mcp.models import WeatherStation, WeatherData, Coordinates
-from knmi_weather_mcp.station import StationManager
-from knmi_weather_mcp.location import get_coordinates
-from knmi_weather_mcp.weather import WeatherService
-from dotenv import load_dotenv
-import os
 import logging
 from pathlib import Path
+from typing import Any, Dict, List
+
+import httpx
+from dotenv import load_dotenv
+from mcp.server.fastmcp.server import Context, FastMCP
+
+from knmi_weather_mcp.location import get_coordinates
+from knmi_weather_mcp.models import Coordinates, WeatherStation
+from knmi_weather_mcp.station import StationManager
+from knmi_weather_mcp.weather import WeatherService
 
 # Get the absolute path to the src directory
 current_dir = Path(__file__).resolve().parent
@@ -24,14 +25,15 @@ log_file = log_dir / "knmi_weather.log"
 # Configure logging with a more detailed format
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(log_file),
-        logging.StreamHandler()  # This will still print to console
-    ]
+        logging.StreamHandler(),  # This will still print to console
+    ],
 )
 
 logger = logging.getLogger("knmi_weather")
+
 
 # Create a custom context class that writes to our logger
 class LoggingContext(Context):
@@ -51,6 +53,7 @@ class LoggingContext(Context):
         self.logger.error(message)
         await super().error(message)
 
+
 # Initialize FastMCP server with our custom context class
 mcp = FastMCP(
     "KNMI Weather",
@@ -60,7 +63,8 @@ mcp = FastMCP(
     log_level="INFO",
     logger=logger,
     context_class=LoggingContext,
-    python_path=[str(src_dir)]  # Use the dynamically determined src directory
+    python_path=[str(src_dir)],  # Use the dynamically determined src directory
+    port=8001,
 )
 
 # Initialize station manager
@@ -69,116 +73,78 @@ station_manager = StationManager()
 # Initialize weather service
 weather_service = WeatherService()
 
+
 # Tools
-@mcp.tool()
-async def test_logging(ctx: Context) -> Dict[str, Any]:
-    """Test if logging is working"""
-    logger.error("Test ERROR message")  # Should always show
-    logger.info("Test INFO message")
-    logger.debug("Test DEBUG message")
-    return {"status": "completed", "message": "Logging test completed"}
-
-@mcp.tool()
-async def test_api_key(ctx: Context) -> Dict[str, Any]:
-    """Test KNMI API key"""
-    api_key = os.getenv("KNMI_API_KEY")
-    async with httpx.AsyncClient() as client:
-        # Test EDR API endpoint
-        response = await client.get(
-            "https://api.dataplatform.knmi.nl/edr/v1/collections/observations/locations",
-            headers={'Authorization': api_key}
-        )
-        
-        result = {
-            "status_code": response.status_code,
-            "is_authorized": response.status_code == 200,
-            "endpoint": "EDR API - Locations endpoint",
-        }
-        
-        if response.status_code == 200:
-            data = response.json()
-            result["stations_count"] = len(data.get('features', []))
-            result["response_data"] = data
-        else:
-            result["error"] = response.text
-            
-        return result
-
 @mcp.tool()
 async def get_location_weather(location: str, ctx: Context) -> Dict[str, Any]:
     """Get current weather data for a location"""
     logger.info(f"Starting weather request for {location}")
-    
+
     try:
         # Log each step
         logger.info("Step 1: Refreshing stations")
         await station_manager.refresh_stations(ctx)
-        
+
         logger.info("Step 2: Getting coordinates")
         coords = await get_coordinates(location)
         logger.debug(f"Coordinates found: {coords}")
-        
+
         # Check if coordinates are within Netherlands
         if not station_manager._validate_coordinates(coords):
-            raise ValueError(f"Location '{location}' ({coords.latitude}, {coords.longitude}) is outside the Netherlands. This tool only works for locations within the Netherlands.")
-        
+            raise ValueError(
+                f"Location '{location}' ({coords.latitude}, {coords.longitude}) is outside the Netherlands. This tool only works for locations within the Netherlands."
+            )
+
         logger.info("Step 3: Finding nearest station")
         station = station_manager.find_nearest_station(coords)
         logger.info(f"Using station: {station.name} ({station.id})")
-        
+
         logger.info("Step 4: Getting weather data")
         weather_data = await station_manager.get_raw_station_data(station.id, ctx)
-        
+
         logger.info("Weather data retrieved successfully")
         return weather_data
-        
+
     except Exception as e:
         logger.error(f"Error getting weather: {str(e)}")
-        raise
+        return f"Error: Unable to get weather data for {location}. {str(e)}"
+
 
 @mcp.tool()
-async def search_location(
-    query: str,
-    ctx: Context
-) -> List[Dict[str, str]]:
+async def search_location(query: str, ctx: Context) -> List[Dict[str, str]]:
     """
     Search for locations in the Netherlands
-    
+
     Args:
         query: Search term for location
     """
     async with httpx.AsyncClient() as client:
         response = await client.get(
             "https://nominatim.openstreetmap.org/search",
-            params={
-                'q': f"{query}, Netherlands",
-                'format': 'json',
-                'limit': 5
-            },
-            headers={'User-Agent': 'KNMI_Weather_MCP/1.0'}
+            params={"q": f"{query}, Netherlands", "format": "json", "limit": 5},
+            headers={"User-Agent": "KNMI_Weather_MCP/1.0"},
         )
         response.raise_for_status()
-        
+
         results = []
         for place in response.json():
-            results.append({
-                'name': place['display_name'],
-                'type': place['type'],
-                'latitude': place['lat'],
-                'longitude': place['lon']
-            })
-            
+            results.append(
+                {
+                    "name": place["display_name"],
+                    "type": place["type"],
+                    "latitude": place["lat"],
+                    "longitude": place["lon"],
+                }
+            )
+
         return results
 
+
 @mcp.tool()
-async def get_nearest_station(
-    latitude: float,
-    longitude: float,
-    ctx: Context
-) -> WeatherStation:
+async def get_nearest_station(latitude: float, longitude: float, ctx: Context) -> WeatherStation:
     """
     Find the nearest KNMI weather station to given coordinates
-    
+
     Args:
         latitude: Latitude in degrees
         longitude: Longitude in degrees
@@ -187,62 +153,77 @@ async def get_nearest_station(
     coords = Coordinates(latitude=latitude, longitude=longitude)
     return station_manager.find_nearest_station(coords)
 
+
 @mcp.tool()
-async def what_is_the_weather_like_in(
-    location: str,
-    ctx: Context
-) -> str:
+async def what_is_the_weather_like_in(location: str, ctx: Context) -> str:
     """
     Get and interpret weather data for a location in the Netherlands
-    
+
     Args:
         location: City or place name in the Netherlands
     Returns:
         A natural language interpretation of the current weather conditions
     """
-    # Get the coordinates for the location
-    coords = await get_coordinates(location)
-    
-    # Get the weather data
-    weather_data = await weather_service.get_weather_by_location(location, ctx)
-    
-    # Convert to dict and ensure all fields are present
-    data_dict = weather_data.dict()
-    
-    # Add location information
-    data_dict['requested_location'] = location
-    data_dict['location_coordinates'] = {
-        'latitude': coords.latitude,
-        'longitude': coords.longitude
-    }
-    
-    # Use the interpretation prompt to analyze it
-    return weather_interpretation(data_dict)
+    try:
+        # Get the coordinates for the location
+        coords = await get_coordinates(location)
+
+        # Get the weather data
+        weather_data = await weather_service.get_weather_by_location(location, ctx)
+
+        # Convert to dict and ensure all fields are present
+        data_dict = weather_data.dict()
+
+        # Add location information
+        data_dict["requested_location"] = location
+        data_dict["location_coordinates"] = {
+            "latitude": coords.latitude,
+            "longitude": coords.longitude,
+        }
+
+        # Use the interpretation prompt to analyze it
+        return weather_interpretation(data_dict)
+    except Exception as e:
+        logger.error(f"Error getting weather for {location}: {str(e)}")
+        return f"Error: Unable to get weather data for {location}. {str(e)}"
+
 
 # Prompts
 @mcp.prompt()
 def weather_interpretation(raw_data: Dict[str, Any]) -> str:
     """Help Claude interpret raw weather data"""
-    return f"""Please analyze this weather data from KNMI and provide:
-    1. A clear summary of current conditions
-    2. Important weather measurements and their values
-    3. Any notable patterns or extreme values
-    4. Relevant clothing advice based on the conditions
-    
-    Location: {raw_data['requested_location']} ({raw_data['location_coordinates']['latitude']:.3f}°N, {raw_data['location_coordinates']['longitude']:.3f}°E)
-    Weather station: {raw_data['station_name']} ({raw_data['station_id']}) at {raw_data['timestamp']}
-    
-    Current measurements:
-    - Temperature: {raw_data['temperature']}°C
-    - Humidity: {raw_data['humidity']}%
-    - Wind Speed: {raw_data['wind_speed']} m/s
-    - Wind Direction: {raw_data['wind_direction']} degrees
-    - Precipitation: {raw_data['precipitation']} mm
-    - Visibility: {raw_data['visibility']} meters
-    - Pressure: {raw_data['pressure']} hPa
-    """
+    try:
+        location = raw_data.get("requested_location", "Unknown location")
+        coords = raw_data.get("location_coordinates", {})
+        lat = coords.get("latitude", 0.0)
+        lon = coords.get("longitude", 0.0)
+        station_name = raw_data.get("station_name", "Unknown station")
+        station_id = raw_data.get("station_id", "Unknown ID")
+        timestamp = raw_data.get("timestamp", "Unknown time")
+
+        return f"""Please analyze this weather data from KNMI and provide:
+        1. A clear summary of current conditions
+        2. Important weather measurements and their values
+        3. Any notable patterns or extreme values
+        4. Relevant clothing advice based on the conditions
+        
+        Location: {location} ({lat:.3f}°N, {lon:.3f}°E)
+        Weather station: {station_name} ({station_id}) at {timestamp}
+        
+        Current measurements:
+        - Temperature: {raw_data.get("temperature", "N/A")}°C
+        - Humidity: {raw_data.get("humidity", "N/A")}%
+        - Wind Speed: {raw_data.get("wind_speed", "N/A")} m/s
+        - Wind Direction: {raw_data.get("wind_direction", "N/A")} degrees
+        - Precipitation: {raw_data.get("precipitation", "N/A")} mm
+        - Visibility: {raw_data.get("visibility", "N/A")} meters
+        - Pressure: {raw_data.get("pressure", "N/A")} hPa
+        """
+    except Exception as e:
+        logger.error(f"Error formatting weather interpretation: {str(e)}")
+        return "Error: Unable to interpret weather data due to missing or invalid data."
+
 
 if __name__ == "__main__":
-    # For development testing
-    import uvicorn
-    uvicorn.run(mcp.app, host="localhost", port=8000)
+    # For running directly
+    mcp.run()
