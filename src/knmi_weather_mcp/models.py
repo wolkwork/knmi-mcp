@@ -1,14 +1,19 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Dict
 from datetime import datetime
+from typing import Dict, Optional
+
+from pydantic import BaseModel, Field
+
 
 class Coordinates(BaseModel):
     """Geographic coordinates"""
+
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
 
+
 class WeatherStation(BaseModel):
     """KNMI weather station"""
+
     id: str
     name: str
     coordinates: Coordinates
@@ -16,8 +21,10 @@ class WeatherStation(BaseModel):
     station_type: Optional[str] = None
     region: Optional[str] = None
 
+
 class WeatherData(BaseModel):
     """Weather measurement data"""
+
     temperature: float
     humidity: float
     timestamp: datetime
@@ -29,8 +36,10 @@ class WeatherData(BaseModel):
     visibility: Optional[float] = None
     pressure: Optional[float] = None
 
+
 class StationData(BaseModel):
     """Raw station measurement data"""
+
     measurements: Dict[str, float]
     metadata: Dict[str, str]
     timestamp: datetime

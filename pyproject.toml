@@ -2,7 +2,10 @@
 name = "knmi-weather-mcp"
 version = "0.1.0"
 description = "KNMI Weather MCP Server"
-authors = []
+authors = [
+    {name = "Stijn Meijers", email = "stijn@wolk.work"},
+    {name = "Nathan Clerkx", email = "nathan@wolk.work"}
+]
 dependencies = [
     "fastmcp",
     "httpx",
@@ -16,15 +19,6 @@ dependencies = [
 ]
 requires-python = ">=3.10"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -32,13 +26,22 @@ build-backend = "hatchling.build"
 [tool.ruff]
 select = ["E", "F", "I", "B", "ERA"]
 ignore = []
-line-length = 100
+line-length = 120
 
 [tool.black]
-line-length = 100
+line-length = 120
 target-version = ['py39']
 
 [tool.mypy]
 python_version = "3.9"
 strict = true
 warn_unreachable = true
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.15.0",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
+    "ruff>=0.9.6",
+]

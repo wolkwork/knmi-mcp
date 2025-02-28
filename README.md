@@ -41,49 +41,59 @@ A FastMCP server that provides real-time weather data from KNMI (Royal Netherlan
 
 ### Using Claude AI
 
-To use this application with Claude AI, add the following configuration to your Claude configuration file (typically located at `~/Library/Application Support/Claude/claude_desktop_config.json`):
+To use this application with Claude AI, run the following command in the folder of the project:
+
+```bash
+uv run fastmcp install src/knmi_weather_mcp/server.py
+```
+
+This will add the following configuration to your Claude configuration file (typically located at `~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
-  "KNMI Weather": {
-    "command": "uv",
-    "args": [
-      "--directory",
-      "/Users/<username>/src/knmi-mcp/src/knmi_weather_mcp",
-      "run",
-      "--with",
-      "fastmcp",
-      "--with",
-      "httpx",
-      "--with",
-      "netCDF4",
-      "--with",
-      "numpy",
-      "--with",
-      "pandas",
-      "--with",
-      "pydantic",
-      "--with",
-      "python-dotenv",
-      "--with",
-      "xarray",
-      "fastmcp",
-      "run",
-      "server.py"
-    ]
-  }
+    "KNMI Weather": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "--with",
+        "httpx",
+        "--with",
+        "netCDF4",
+        "--with",
+        "numpy",
+        "--with",
+        "pandas",
+        "--with",
+        "pydantic",
+        "--with",
+        "python-dotenv",
+        "--with",
+        "xarray",
+        "fastmcp",
+        "run",
+        "/Users/<username>/<git location>/knmi-mcp/src/knmi_weather_mcp/server.py"
+      ]
+    }
 }
 ```
 
-Note: Update the `--directory` path to match your local installation.
+Note: If you see an error like this:
+
+```
+spawn uv ENOENT
+```
+
+Replace the `uv` command with the full path to the `uv` command. On *nix systems this can be found with the command `which uv`.
+
 
 ### Manual Running
 
 For development or standalone usage:
 
 ```bash
-cd src/knmi_weather_mcp
-uv run --with fastmcp --with httpx --with netCDF4 --with numpy --with pandas --with pydantic --with python-dotenv --with xarray fastmcp run server.py
+uv run fastmcp run src/knmi_weather_mcp/server.py
 ```
 
 ## Available Tools

@@ -2,13 +2,16 @@
 
 __version__ = "0.1.0"
 
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class Coordinates(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
+
 
 class WeatherStation(BaseModel):
     id: str
@@ -17,6 +20,7 @@ class WeatherStation(BaseModel):
     elevation: float
     station_type: Optional[str] = None
     region: Optional[str] = None
+
 
 class WeatherData(BaseModel):
     temperature: float
