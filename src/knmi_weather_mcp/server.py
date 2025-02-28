@@ -92,7 +92,8 @@ async def get_location_weather(location: str, ctx: Context) -> Dict[str, Any]:
         # Check if coordinates are within Netherlands
         if not station_manager._validate_coordinates(coords):
             raise ValueError(
-                f"Location '{location}' ({coords.latitude}, {coords.longitude}) is outside the Netherlands. This tool only works for locations within the Netherlands."
+                f"Location '{location}' ({coords.latitude}, {coords.longitude}) is outside the "
+                "Netherlands. This tool only works for locations within the Netherlands."
             )
 
         logger.info("Step 3: Finding nearest station")
