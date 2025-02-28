@@ -235,15 +235,6 @@ dependencies = [
     { name = "xarray" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "black" },
@@ -255,19 +246,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "fastmcp" },
     { name = "httpx" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "netcdf4" },
     { name = "numpy" },
     { name = "polars" },
     { name = "pydantic" },
     { name = "pytest" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "python-dotenv" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "xarray" },
 ]
 
