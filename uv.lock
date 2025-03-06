@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -230,6 +231,7 @@ dependencies = [
     { name = "numpy" },
     { name = "polars" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "pytest" },
     { name = "python-dotenv" },
     { name = "xarray" },
@@ -252,6 +254,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "polars" },
     { name = "pydantic" },
+    { name = "pydantic-settings", specifier = ">=2.7.1" },
     { name = "pytest" },
     { name = "python-dotenv" },
     { name = "xarray" },

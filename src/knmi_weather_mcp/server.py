@@ -6,6 +6,7 @@ import httpx
 from dotenv import load_dotenv
 from mcp.server.fastmcp.server import Context, FastMCP
 
+from knmi_weather_mcp.config import config
 from knmi_weather_mcp.location import get_coordinates
 from knmi_weather_mcp.models import Coordinates, WeatherStation
 from knmi_weather_mcp.station import StationManager
@@ -64,7 +65,7 @@ mcp = FastMCP(
     logger=logger,
     context_class=LoggingContext,
     python_path=[str(src_dir)],  # Use the dynamically determined src directory
-    port=8001,
+    port=config.port,
 )
 
 # Initialize station manager
