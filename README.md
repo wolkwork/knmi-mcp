@@ -2,6 +2,10 @@
 
 A FastMCP server that provides real-time weather data from KNMI (Royal Netherlands Meteorological Institute) weather stations. This application fetches the latest 10-minute measurements from the nearest weather station to any location in the Netherlands.
 
+<a href="https://glama.ai/mcp/servers/xanerdcjsm">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/xanerdcjsm/badge" alt="KNMI Weather MCP server" />
+</a>
+
 ## Features
 
 - Get weather data for any location in the Netherlands
